@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import habitRoutes from "./routes/habitRoutes.js";
 
 const app = express();
 
@@ -12,5 +13,7 @@ app.get("/api/health", (_req, res) => {
     message: "HabitFlow API is running!",
   });
 });
+
+app.use("/api/habits", habitRoutes);
 
 export default app;
