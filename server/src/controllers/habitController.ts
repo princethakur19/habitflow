@@ -42,7 +42,8 @@ export const createHabit = async (
 
     res.status(500).json({
       success: false,
-      message: "Failed to create habit",
+      message:
+          error instanceof Error ? error.message : "Unknown server error",
     });
   }
 };

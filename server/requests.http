@@ -1,0 +1,14 @@
+
+### Check if HabitFlow API is running
+GET http://localhost:5000/api/health
+
+### Create a habit
+POST http://localhost:5000/api/habits
+Content-Type: application/json
+
+{
+  "title": "Read for 20 minutes",
+  "description": "Read a technical book every day",
+  "category": "Learning",
+  "frequency": "Daily"
+}
