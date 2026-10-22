@@ -1,4 +1,3 @@
-
 import type { Request, Response } from "express";
 import Habit from "../models/Habit.js";
 
@@ -48,4 +47,24 @@ export const createHabit = async (
   }
 };
 
+export const getHabits = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const habits = await Habit.find().sort({ createdAt: -1 });
 
+    res.status(200).json({
+      success: true,
+      count: habits.length,
+      data: habits,
+    });
+  } catch (error) {
+    console.error("Get habits error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch habits",
+    });
+  }
+};
