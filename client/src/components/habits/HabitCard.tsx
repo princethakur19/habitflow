@@ -1,10 +1,16 @@
 import type { Habit } from "../../types/habit";
-import { CATEGORY_STYLES } from "../../utils/habitStyles";
 
 type HabitCardProps = {
   habit: Habit;
   completed: boolean;
   onToggle: (id: string) => void;
+};
+
+const categoryColors: Record<string, string> = {
+  Health: "bg-emerald-400/10 text-emerald-300",
+  Learning: "bg-sky-400/10 text-sky-300",
+  Productivity: "bg-amber-400/10 text-amber-300",
+  Personal: "bg-pink-400/10 text-pink-300",
 };
 
 export default function HabitCard({
@@ -14,24 +20,26 @@ export default function HabitCard({
 }: HabitCardProps) {
   return (
     <article
-      className={`animate-item rounded-[22px] border p-5 transition hover:-translate-y-0.5 hover:shadow-sm ${
+      className={`animate-item group rounded-2xl border p-5 transition duration-200 hover:-translate-y-0.5 ${
         completed
-          ? "border-[#DCE5D7] bg-[#F0F4EC]"
-          : "border-[#E8E6DC] bg-white"
+          ? "border-[#C5F36B]/25 `bg-[#C5F36B]/[0.04]`"
+          : "border-white/[0.07] bg-[#131814] hover:border-white/15"
       }`}
     >
       <div className="flex items-start gap-4">
         <button
-          onClick={() => onToggle(habit._id)}
+          type="button"
           aria-label={
             completed
               ? `Mark ${habit.title} incomplete`
               : `Mark ${habit.title} complete`
           }
-          className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+          aria-pressed={completed}
+          onClick={() => onToggle(habit._id)}
+          className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${
             completed
-              ? "border-[#668267] bg-[#668267] text-white"
-              : "border-[#D4D7CB] text-transparent hover:border-[#668267]"
+              ? "border-[#C5F36B] bg-[#C5F36B] text-[#17200F]"
+              : "border-white/15 text-transparent hover:border-[#C5F36B] hover:text-[#C5F36B]"
           }`}
         >
           ✓
@@ -40,38 +48,40 @@ export default function HabitCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3
-              className={`font-medium ${
-                completed
-                  ? "text-[#858B7E] line-through"
-                  : "text-[#263B2E]"
+              className={`break-word font-medium ${
+                completed ? "text-[#899588] line-through" : "text-[#F0F3EC]"
               }`}
             >
               {habit.title}
             </h3>
+
             <span
               className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                CATEGORY_STYLES[habit.category] ||
-                "bg-[#EDF0E8] text-[#526650]"
+                categoryColors[habit.category] ??
+                "`bg-white/[0.06]` text-[#A8B2A4]"
               }`}
             >
               {habit.category}
             </span>
           </div>
 
-          {habit.description && (
-            <p className="mt-2 text-sm leading-6 text-[#858B7E]">
-              {habit.description}
-            </p>
-          )}
-
-          <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.12em] text-[#92978A]">
-            {habit.frequency} practice
+          <p className="mt-2 text-sm leading-6 text-[#899588]">
+            {habit.description || "One small step toward your goals."}
           </p>
-        </div>
 
-        <span className="text-lg text-[#B8C2AF]">
-          {completed ? "✳" : "○"}
-        </span>
+          <div className="mt-4 flex items-center justify-between border-t border-white/[0.07] pt-4">
+            <span className="text-xs text-[#788478]">
+              ↻ {habit.frequency}
+            </span>
+            <span
+              className={`text-xs font-medium ${
+                completed ? "text-[#C5F36B]" : "text-[#788478]"
+              }`}
+            >
+              {completed ? "✓ Done for now" : "Ready when you are"}
+            </span>
+          </div>
+        </div>
       </div>
     </article>
   );

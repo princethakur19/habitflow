@@ -8,24 +8,24 @@ export default function EmptyState({
   onAddHabit,
 }: EmptyStateProps) {
   return (
-    <div className="rounded-\[24px\] border border-dashed border-[#D9DCCF] bg-[#F1F1E9] px-6 py-12 text-center">
-      <span className="text-3xl">🌿</span>
-      <h3 className="mt-4 font-serif text-2xl">
-        {hasHabits
-          ? "Nothing in this category yet."
-          : "Every good thing starts small."}
+    <div className="rounded-3xl border border-dashed border-white/15 bg-[#131814] px-6 py-12 text-center">
+      <span className="text-3xl">✳</span>
+      <h3 className="mt-4 text-xl font-semibold">
+        {hasHabits ? "No matches this time." : "Start with one small thing."}
       </h3>
-      <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#777D72]">
+      <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#899588]">
         {hasHabits
-          ? "Try another category, or add a habit that belongs here."
-          : "Choose one small thing you'd like to do more often. We'll take it from there."}
+          ? "Try a different category or search term."
+          : "Choose a habit that matters to you. You can build on it as you go."}
       </p>
-      <button
-        onClick={onAddHabit}
-        className="mt-5 rounded-full bg-[#294B3A] px-5 py-3 text-sm font-medium text-white hover:bg-[#203C2D]"
-      >
-        + Add a habit
-      </button>
+      {!hasHabits && (
+        <button
+          onClick={onAddHabit}
+          className="mt-5 rounded-xl bg-[#C5F36B] px-5 py-3 text-sm font-semibold text-[#17200F] hover:bg-[#D4FA89]"
+        >
+          + Create your first habit
+        </button>
+      )}
     </div>
   );
 }
