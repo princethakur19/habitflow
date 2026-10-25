@@ -319,7 +319,7 @@ export default function Dashboard() {
                 dateLabel={dateLabel}
               />
 
-              <section className="rounded-2xl border border-white/[0.07] bg-[#111827] p-5">
+              <section id="progress" className="rounded-2xl border border-white/[0.07] bg-[#111827] p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold">Weekly activity</h2>
