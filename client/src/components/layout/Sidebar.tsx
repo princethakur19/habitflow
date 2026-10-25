@@ -1,6 +1,6 @@
 export default function Sidebar() {
   return (
-    <aside className="hidden w-\[235px\] shrink-0 flex-col border-r border-white/[0.07] bg-[#0D110E] px-5 py-7 md:flex">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[#0D120F] px-4 py-5 sm:w-60 lg:w-64">
       <a href="#home" className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#C5F36B] text-xl font-bold text-[#17200F]">
           h

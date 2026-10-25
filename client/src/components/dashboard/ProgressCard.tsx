@@ -1,52 +1,95 @@
+import { useEffect, useRef } from "react";
+import gsap from "gsap";
+
 type ProgressCardProps = {
-  completedCount: number;
-  totalCount: number;
+  completed: number;
+  total: number;
+  dateLabel: string;
 };
 
 export default function ProgressCard({
-  completedCount,
-  totalCount,
+  completed,
+  total,
+  dateLabel,
 }: ProgressCardProps) {
-  const progress =
-    totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
+  const numberRef = useRef<HTMLSpanElement>(null);
+  const progress = total > 0
+    ? Math.round((completed / total) * 100)
+    : 0;
+
+  useEffect(() => {
+    if (!numberRef.current) return;
+
+    gsap.fromTo(
+      numberRef.current,
+      { scale: 0.88, y: 4 },
+      {
+        scale: 1,
+        y: 0,
+        duration: 0.35,
+        ease: "back.out(2)",
+      },
+    );
+  }, [progress]);
 
   return (
-    <section
-      id="progress"
-      className="animate-item mb-10 grid gap-5 rounded-[28px] border border-[#E8E6DC] bg-white p-6 sm:p-8 md:grid-cols-[1fr_auto] md:items-center"
-    >
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#92978A]">
-          Today's little wins
-        </p>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="font-serif text-4xl">{completedCount}</span>
-          <span className="text-sm text-[#858B7E]">
-            of {totalCount} habits completed
-          </span>
+    <section className="rounded-2xl border border-white/[0.07] bg-[#111827] p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Daily progress</h2>
+          <p className="mt-1 text-xs text-[#9CA3AF]">{dateLabel}</p>
         </div>
-
-        <div className="mt-5 h-2 max-w-lg overflow-hidden rounded-full bg-[#EDF0E8]">
-          <div
-            className="h-full rounded-full bg-[#668267] transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <p className="mt-3 text-xs text-[#858B7E]">
-          {totalCount === 0
-            ? "Your first habit is waiting for you."
-            : progress === 100
-              ? "Beautiful work. You showed up for yourself today!"
-              : "Every checkmark is a promise you kept to yourself."}
-        </p>
+        <span className="rounded-lg bg-[#10B981]/10 px-2.5 py-1.5 text-xs text-[#10B981]">
+          {total > 0 ? `${completed}/${total}` : "No habits"}
+        </span>
       </div>
 
-      <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full border-[5px] border-[#E4EBDD] bg-[#F5F7F1]">
-        <span className="font-serif text-2xl">{progress}%</span>
-        <span className="text-[9px] uppercase tracking-widest text-[#858B7E]">
-          complete
-        </span>
+      <div className="mt-6 flex items-center gap-5">
+        <div
+          className="grid h-24 w-24 shrink-0 place-items-center rounded-full"
+          style={{
+            background: `conic-gradient(#10B981 ${progress}%, #263244 ${progress}% 100%)`,
+          }}
+          role="img"
+          aria-label={`${progress}% of habits completed`}
+        >
+          <div className="grid h-[76px] w-[76px] place-items-center rounded-full bg-[#111827]">
+            <span
+              ref={numberRef}
+              className="text-2xl font-semibold tabular-nums"
+            >
+              {progress}%
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium">
+            {total === 0
+              ? "Start with one habit."
+              : progress === 100
+                ? "Everything checked off."
+                : progress >= 50
+                  ? "You're making progress."
+                  : "Every step counts."}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[#9CA3AF]">
+            {completed} of {total} habits completed.
+          </p>
+        </div>
+      </div>
+
+      <div
+        className="mt-5 h-1.5 overflow-hidden rounded-full bg-[#263244]"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+      >
+        <div
+          className="h-full rounded-full bg-[#10B981] transition-[width] duration-500 ease-out"
+          style={{ width: `${progress}%` }}
+        />
       </div>
     </section>
   );

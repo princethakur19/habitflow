@@ -1,86 +1,135 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import gsap from "gsap";
 
 import Sidebar from "../components/layout/Sidebar";
 import PageHeader from "../components/layout/PageHeader";
-
 import EmptyState from "../components/dashboard/EmptyState";
+import DateStrip from "../components/dashboard/DateStrip";
+import ProgressCard from "../components/dashboard/ProgressCard";
+
 import HabitFilters from "../components/habits/HabitFilters";
 import HabitList from "../components/habits/HabitList";
 import HabitForm from "../components/habits/HabitForm";
 
 import { useHabits } from "../hooks/useHabits";
 import type { HabitCategory } from "../types/habit";
+import { createWeekDates, dateKey, parseDateKey } from "../utils/dateUtils";
 
-const weekDays = [
-  { label: "M", name: "Mon" },
-  { label: "T", name: "Tue" },
-  { label: "W", name: "Wed" },
-  { label: "T", name: "Thu" },
-  { label: "F", name: "Fri" },
-  { label: "S", name: "Sat" },
-  { label: "S", name: "Sun" },
+type CompletionHistory = Record<string, string[]>;
+
+const STORAGE_KEY = "habitflow-completions";
+
+function readHistory(): CompletionHistory {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return {};
+
+    const parsed: unknown = JSON.parse(saved);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const history: CompletionHistory = {};
+
+    for (const [key, value] of Object.entries(parsed)) {
+      if (
+        /^\d{4}-\d{2}-\d{2}$/.test(key) &&
+        Array.isArray(value) &&
+        value.every((id) => typeof id === "string")
+      ) {
+        history[key] = [...new Set(value)];
+      }
+    }
+
+    return history;
+  } catch {
+    return {};
+  }
+}
+
+const categories: HabitCategory[] = [
+  "All habits",
+  "Health",
+  "Learning",
+  "Productivity",
+  "Personal",
 ];
 
 export default function Dashboard() {
   const { habits, loading, saving, error, addHabit, refreshHabits } =
     useHabits();
 
+  const [history, setHistory] = useState<CompletionHistory>(readHistory);
+  const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
   const [activeCategory, setActiveCategory] =
     useState<HabitCategory>("All habits");
-  const [completedHabits, setCompletedHabits] = useState<string[]>([]);
-  const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
   const [focusMode, setFocusMode] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
-  const dashboardRef = useRef<HTMLElement>(null);
+  const weekDates = useMemo(() => createWeekDates(), []);
+  const todayKey = dateKey(new Date());
+  const selectedCompletions = history[selectedDate] ?? [];
+
+  const dateLabel = parseDateKey(selectedDate).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  const completedCount = habits.filter((habit) =>
+    selectedCompletions.includes(habit._id),
+  ).length;
+
+  const completionCounts = useMemo(() => {
+    const result: Record<string, number> = {};
+
+    for (const day of weekDates) {
+      result[day.key] = (history[day.key] ?? []).filter((id) =>
+        habits.some((habit) => habit._id === id),
+      ).length;
+    }
+
+    return result;
+  }, [history, habits, weekDates]);
 
   useEffect(() => {
-    if (loading || error || !dashboardRef.current) return;
-
-    const ctx = gsap.context(() => {
-      gsap.from(".animate-item", {
-        y: 14,
-        opacity: 0,
-        duration: 0.45,
-        stagger: 0.06,
-        ease: "power2.out",
-      });
-    }, dashboardRef);
-
-    return () => ctx.revert();
-  }, [loading, error]);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    } catch (storageError) {
+      console.error("Could not save completion history:", storageError);
+    }
+  }, [history]);
 
   const filteredHabits = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
     return habits.filter((habit) => {
       const matchesCategory =
         activeCategory === "All habits" || habit.category === activeCategory;
 
       const matchesSearch =
-        habit.title.toLowerCase().includes(search.toLowerCase()) ||
-        (habit.description ?? "").toLowerCase().includes(search.toLowerCase());
+        habit.title.toLowerCase().includes(query) ||
+        (habit.description ?? "").toLowerCase().includes(query);
 
-      const matchesFocus = !focusMode || !completedHabits.includes(habit._id);
+      const matchesFocus =
+        !focusMode || !selectedCompletions.includes(habit._id);
 
       return matchesCategory && matchesSearch && matchesFocus;
     });
-  }, [habits, activeCategory, search, focusMode, completedHabits]);
-
-  const completedCount = habits.filter((habit) =>
-    completedHabits.includes(habit._id),
-  ).length;
-
-  const progress =
-    habits.length === 0
-      ? 0
-      : Math.round((completedCount / habits.length) * 100);
+  }, [habits, activeCategory, search, focusMode, selectedCompletions]);
 
   const toggleHabit = (id: string) => {
-    setCompletedHabits((current) =>
-      current.includes(id)
-        ? current.filter((habitId) => habitId !== id)
-        : [...current, id],
-    );
+    if (selectedDate > todayKey) return;
+
+    setHistory((current) => {
+      const existing = current[selectedDate] ?? [];
+      const updated = existing.includes(id)
+        ? existing.filter((habitId) => habitId !== id)
+        : [...existing, id];
+
+      return { ...current, [selectedDate]: updated };
+    });
   };
 
   const handleAddHabit = async (
@@ -89,286 +138,298 @@ export default function Dashboard() {
     const created = await addHabit(input);
 
     if (created) {
+      setShowForm(false);
       setActiveCategory("All habits");
       setSearch("");
-      setFocusMode(false);
     }
 
     return created;
   };
 
-  const today = new Date();
-  const todayLabel = today.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-
-  const todayIndex = (today.getDay() + 6) % 7;
-
   return (
-    <main
-      ref={dashboardRef}
-      className="min-h-screen bg-[#0B0E0C] font-sans text-[#F0F3EC]"
-    >
+    <main className="min-h-screen bg-[#0A0F1D] font-sans text-[#F9FAFB]">
       <div className="mx-auto flex min-h-screen max-w-[1700px]">
         <Sidebar />
 
         <section
           id="home"
-          className="min-w-0 flex-1 px-5 py-6 sm:px-8 lg:px-10"
+          className="min-w-0 flex-1 px-5 py-5 sm:px-8 lg:px-10"
         >
           <PageHeader onAddHabit={() => setShowForm(true)} />
 
-          {/* Greeting */}
-          <header className="animate-item mb-8 mt-10 flex flex-wrap items-end justify-between gap-5">
+          <header className="mb-7 mt-8 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-sm text-[#9BA69A]">{todayLabel}</p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
-                Make room for
-                <span className="text-[#C5F36B]"> growth.</span>
+              <p className="text-xs uppercase tracking-[0.14em] text-[#9CA3AF]">
+                HabitFlow / Personal space
+              </p>
+              <p className="mt-1 text-xs text-[#6B7280]">
+                A better rhythm starts here.
+              </p>
+              <p className="mt-7 text-sm text-[#9CA3AF]">{dateLabel}</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+                Make room for <span className="text-[#C5F36B]">growth.</span>
               </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-[#9BA69A]">
-                Small actions, repeated with care, can change everything. Let's
-                make today count.
+              <p className="mt-2 max-w-xl text-sm leading-6 text-[#9CA3AF]">
+                Small actions, repeated with care, can change everything.
               </p>
             </div>
 
             <button
-              onClick={() => setFocusMode((current) => !current)}
-              className={`rounded-2xl border px-4 py-3 text-sm transition ${
+              type="button"
+              aria-pressed={focusMode}
+              onClick={() => setFocusMode((value) => !value)}
+              className={`rounded-xl border px-4 py-3 text-sm transition ${
                 focusMode
-                  ? "border-[#C5F36B]/50 bg-[#C5F36B] text-[#11170D]"
-                  : "border-white/10 bg-[#141915] text-[#D9E0D5] hover:border-[#C5F36B]/40"
+                  ? "border-[#C5F36B] bg-[#C5F36B] text-[#0A0F1D]"
+                  : "border-white/10 bg-[#111827] text-[#D1D5DB] hover:border-white/20"
               }`}
             >
-              {focusMode ? "✓ Focus mode on" : "◉ Enter focus mode"}
+              {focusMode ? "✓ Focus mode on" : "◎ Enter focus mode"}
             </button>
           </header>
 
-          {/* Main metrics */}
-          <section className="animate-item grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <article className="rounded-3xl border border-white/[0.07] bg-[#131814] p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-[#9BA69A]">Your habits</p>
-                <span className="rounded-xl bg-white/[0.06] px-3 py-2 text-sm">
-                  ↗
-                </span>
-              </div>
-              <p className="mt-5 text-4xl font-semibold tracking-tight">
-                {habits.length.toString().padStart(2, "0")}
-              </p>
-              <p className="mt-2 text-xs text-[#788478]">
-                Little commitments you've made
-              </p>
-            </article>
+          <DateStrip
+            days={weekDates}
+            selectedDate={selectedDate}
+            onSelect={setSelectedDate}
+            completionCounts={completionCounts}
+          />
 
-            <article className="rounded-3xl border border-white/[0.07] bg-[#131814] p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-[#9BA69A]">Completed today</p>
-                <span className="rounded-xl bg-[#C5F36B]/10 px-3 py-2 text-sm text-[#C5F36B]">
-                  ✓
-                </span>
-              </div>
-              <p className="mt-5 text-4xl font-semibold tracking-tight">
-                {completedCount.toString().padStart(2, "0")}
-                <span className="ml-2 text-base font-normal text-[#788478]">
-                  / {habits.length}
-                </span>
-              </p>
-              <p className="mt-2 text-xs text-[#788478]">
-                Every completed habit is a win
-              </p>
-            </article>
-
-            <article className="rounded-3xl border border-[#C5F36B]/20 bg-[#C5F36B] p-5 text-[#17200F] sm:col-span-2 xl:col-span-1">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-[#34452A]">
-                  Daily momentum
-                </p>
-                <span className="text-lg">✳</span>
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-4xl font-semibold">{progress}%</p>
-                  <p className="mt-2 text-xs text-[#465638]">
-                    {progress === 100 && habits.length > 0
-                      ? "You showed up. That's what matters."
-                      : "Keep moving at your own pace."}
+          <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.9fr)]">
+            <div className="min-w-0">
+              <section className="grid gap-3 sm:grid-cols-2">
+                <article className="rounded-2xl border border-white/[0.07] bg-[#111827] p-5">
+                  <p className="text-sm text-[#9CA3AF]">Your habits</p>
+                  <p className="mt-4 text-3xl font-semibold tabular-nums">
+                    {String(habits.length).padStart(2, "0")}
                   </p>
-                </div>
-                <div className="h-2 w-24 overflow-hidden rounded-full bg-[#A5CF4E]">
-                  <div
-                    className="h-full rounded-full bg-[#17200F] transition-all duration-500"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-            </article>
-          </section>
-
-          {/* Weekly overview */}
-          <section
-            id="progress"
-            className="animate-item mt-5 grid gap-4 lg:grid-cols-[1.5fr_1fr]"
-          >
-            <article className="rounded-3xl border border-white/[0.07] bg-[#131814] p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold">Your week</h2>
-                  <p className="mt-1 text-xs text-[#788478]">
-                    A little consistency goes a long way
+                  <p className="mt-1 text-xs text-[#6B7280]">
+                    Habits in your collection
                   </p>
-                </div>
-                <span className="text-xs text-[#C5F36B]">THIS WEEK</span>
-              </div>
+                </article>
 
-              <div className="mt-6 grid grid-cols-7 gap-2">
-                {weekDays.map((day, index) => (
-                  <div
-                    key={day.name}
-                    className="flex flex-col items-center gap-3"
-                  >
-                    <span className="text-xs text-[#788478]">{day.name}</span>
-                    <div
-                      className={`flex h-9 w-9 items-center justify-center rounded-xl text-xs transition sm:h-11 sm:w-11 ${
-                        index === todayIndex
-                          ? "bg-[#C5F36B] font-bold text-[#17200F] ring-4 ring-[#C5F36B]/10"
-                          : "bg-white/[0.04] text-[#7D897C]"
-                      }`}
-                    >
-                      {index === todayIndex ? "●" : "·"}
-                    </div>
+                <article className="rounded-2xl border border-white/[0.07] bg-[#111827] p-5">
+                  <p className="text-sm text-[#9CA3AF]">Completed that day</p>
+                  <p className="mt-4 text-3xl font-semibold tabular-nums">
+                    {String(completedCount).padStart(2, "0")}
+                    <span className="ml-2 text-sm font-normal text-[#6B7280]">
+                      / {habits.length}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-[#6B7280]">
+                    {habits.length - completedCount} still to go
+                  </p>
+                </article>
+              </section>
+
+              <section id="habits" className="mt-7 scroll-mt-6">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#10B981]">
+                      Daily queue
+                    </p>
+                    <h2 className="mt-2 text-xl font-semibold">
+                      {selectedDate === todayKey
+                        ? "Today's habits"
+                        : "Habits for this day"}
+                    </h2>
+                    <p className="mt-1 text-sm text-[#9CA3AF]">
+                      Focus on progress, not perfection.
+                    </p>
                   </div>
-                ))}
-              </div>
 
-              <p className="mt-5 text-xs leading-5 text-[#788478]">
-                Your activity history will become available when daily
-                completion records are saved in the backend.
-              </p>
-            </article>
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(true)}
+                    className="rounded-xl bg-[#C5F36B] px-4 py-2.5 text-sm font-semibold text-[#0A0F1D] transition hover:brightness-105 active:scale-[0.98]"
+                  >
+                    + New habit
+                  </button>
+                </div>
 
-            <article className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-[#171D17] p-5 sm:p-6">
-              <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-[#C5F36B]/10 blur-3xl" />
-              <p className="relative text-xs font-medium uppercase tracking-[0.16em] text-[#C5F36B]">
-                A thought for today
-              </p>
-              <h2 className="relative mt-5 max-w-xs text-2xl font-medium leading-snug">
-                You don't have to do everything. Just the next thing.
-              </h2>
-              <p className="relative mt-4 text-sm text-[#9BA69A]">
-                Pick one habit. Give it your attention. Start there.
-              </p>
-              <button
-                onClick={() => {
-                  setFocusMode(true);
-                  document
-                    .getElementById("habits")
-                    ?.scrollIntoView({ behavior: "smooth" });
-                }}
-                className="relative mt-6 rounded-xl bg-white/[0.07] px-4 py-3 text-sm transition hover:bg-white/[0.12]"
-              >
-                Find my next step ↗
-              </button>
-            </article>
-          </section>
-
-          {/* Habit collection */}
-          <section id="habits" className="mt-10 scroll-mt-8">
-            <div className="animate-item flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#C5F36B]">
-                  Build your rhythm
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold">Today's habits</h2>
-                <p className="mt-2 text-sm text-[#788478]">
-                  Focus on progress, not perfection.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setShowForm(true)}
-                className="rounded-xl bg-[#C5F36B] px-4 py-3 text-sm font-semibold text-[#17200F] transition hover:bg-[#D4FA89]"
-              >
-                + Add a habit
-              </button>
-            </div>
-
-            <div className="animate-item mt-6 flex flex-col gap-3 sm:flex-row">
-              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-white/[0.08] bg-[#131814] px-4">
-                <span className="text-lg text-[#788478]">⌕</span>
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search habits or descriptions..."
                   aria-label="Search habits"
-                  className="min-w-0 flex-1 bg-transparent py-3.5 text-sm text-white outline-none placeholder:text-[#697568]"
+                  className="mt-5 w-full rounded-xl border border-white/[0.07] bg-[#111827] px-4 py-3.5 text-sm outline-none placeholder:text-[#6B7280] focus:border-[#C5F36B]/60"
                 />
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    className="text-xs text-[#9BA69A] hover:text-white"
-                  >
-                    Clear
-                  </button>
+
+                <div className="mt-4">
+                  <HabitFilters
+                    activeCategory={activeCategory}
+                    onChange={setActiveCategory}
+                  />
+                </div>
+
+                {selectedDate > todayKey && (
+                  <p className="mt-4 rounded-xl border border-indigo-400/20 bg-indigo-400/10 p-3 text-xs text-indigo-200">
+                    This is a future date. You can review your habits, but you
+                    cannot mark them complete yet.
+                  </p>
                 )}
-              </div>
 
-              <span className="self-center text-xs text-[#788478]">
-                {filteredHabits.length} result
-                {filteredHabits.length === 1 ? "" : "s"}
-              </span>
+                {loading && (
+                  <p className="mt-5 text-sm text-[#9CA3AF]">
+                    Loading your habits...
+                  </p>
+                )}
+
+                {!loading && error && (
+                  <div
+                    role="alert"
+                    className="mt-5 rounded-xl bg-rose-400/10 p-4 text-sm text-rose-200"
+                  >
+                    <p>{error}</p>
+                    <button
+                      type="button"
+                      onClick={() => void refreshHabits()}
+                      className="mt-2 underline"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {!loading && !error && filteredHabits.length === 0 && (
+                  <div className="mt-5">
+                    <EmptyState
+                      hasHabits={habits.length > 0}
+                      onAddHabit={() => setShowForm(true)}
+                    />
+                  </div>
+                )}
+
+                {!loading && !error && filteredHabits.length > 0 && (
+                  <div className="mt-4">
+                    <HabitList
+                      habits={filteredHabits}
+                      completedHabits={selectedCompletions}
+                      onToggle={toggleHabit}
+                    />
+                  </div>
+                )}
+              </section>
             </div>
 
-            <div className="mt-4">
-              <HabitFilters
-                activeCategory={activeCategory}
-                onChange={setActiveCategory}
+            <aside className="space-y-4">
+              <ProgressCard
+                completed={completedCount}
+                total={habits.length}
+                dateLabel={dateLabel}
               />
-            </div>
 
-            {loading && (
-              <p className="mt-6 rounded-2xl bg-[#131814] p-6 text-sm text-[#9BA69A]">
-                Preparing your space...
-              </p>
-            )}
+              <section className="rounded-2xl border border-white/[0.07] bg-[#111827] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold">Weekly activity</h2>
+                    <p className="mt-1 text-xs text-[#9CA3AF]">
+                      Your completed habits, day by day
+                    </p>
+                  </div>
 
-            {!loading && error && (
-              <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-5 text-sm text-red-200">
-                <p>{error}</p>
+                  <span className="rounded-lg bg-[#10B981]/10 px-2 py-1 text-xs text-[#10B981]">
+                    {weekDates.reduce(
+                      (sum, day) => sum + (completionCounts[day.key] ?? 0),
+                      0,
+                    )}{" "}
+                    total
+                  </span>
+                </div>
+
+                <div className="mt-6 grid grid-cols-7 gap-2">
+                  {weekDates.map((day) => {
+                    const count = completionCounts[day.key] ?? 0;
+                    const ratio = habits.length > 0 ? count / habits.length : 0;
+                    const isSelected = selectedDate === day.key;
+
+                    return (
+                      <button
+                        key={day.key}
+                        type="button"
+                        onClick={() => setSelectedDate(day.key)}
+                        aria-pressed={isSelected}
+                        aria-label={`${day.label}, ${day.dayNumber}: ${count} of ${habits.length} habits completed`}
+                        title={`${day.label} ${day.dayNumber}: ${count}/${habits.length} completed`}
+                        className={`group flex min-w-0 flex-col items-center rounded-xl border px-1.5 py-3 transition-all duration-200 hover:-translate-y-0.5 ${
+                          isSelected
+                            ? "border-[#C5F36B] bg-[#C5F36B]/10"
+                            : "`border-white/[0.06]` bg-[#0A0F1D] hover:border-white/20"
+                        }`}
+                      >
+                        <span className="text-[10px] text-[#9CA3AF]">
+                          {day.label}
+                        </span>
+
+                        <span
+                          className={`mt-1 text-sm font-semibold tabular-nums ${
+                            isSelected ? "text-[#C5F36B]" : "text-[#F9FAFB]"
+                          }`}
+                        >
+                          {day.dayNumber}
+                        </span>
+
+                        <div className="mt-3 flex h-10 w-full max-w-7 flex-col justify-end overflow-hidden rounded-md bg-[#263244]">
+                          <div
+                            className="w-full rounded-md bg-[#10B981] transition-[height] duration-500"
+                            style={{
+                              height: `${ratio * 100}%`,
+                              minHeight: count > 0 ? "4px" : "0px",
+                            }}
+                          />
+                        </div>
+
+                        <span className="mt-2 text-[10px] tabular-nums text-[#9CA3AF]">
+                          {count}/{habits.length}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+                  <p className="text-xs leading-5 text-[#9CA3AF]">
+                    {habits.length === 0
+                      ? "Create a habit to start tracking your activity."
+                      : weekDates.some(
+                            (day) => (completionCounts[day.key] ?? 0) > 0,
+                          )
+                        ? "Your activity grows with every completed habit."
+                        : "No completions recorded this week yet. Start with one small win."}
+                  </p>
+
+                  <span className="shrink-0 text-[10px] text-[#6B7280]">
+                    {habits.length > 0 ? "Daily completion" : "No data"}
+                  </span>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-[#F59E0B]/15 `bg-gradient-to-br` `from-[#F59E0B]/[0.08]` to-[#111827] p-5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#F59E0B]">
+                  A note to yourself
+                </p>
+                <p className="mt-3 text-sm leading-6 text-[#D1D5DB]">
+                  You don't need to do everything today. Pick one meaningful
+                  action and give it your attention.
+                </p>
                 <button
-                  onClick={() => void refreshHabits()}
-                  className="mt-3 underline"
+                  type="button"
+                  onClick={() =>
+                    document.getElementById("habits")?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    })
+                  }
+                  className="mt-4 text-xs font-semibold text-[#F59E0B] hover:text-amber-300"
                 >
-                  Try again
+                  Find your next step ↗
                 </button>
-              </div>
-            )}
+              </section>
+            </aside>
+          </div>
 
-            {!loading && !error && filteredHabits.length === 0 && (
-              <div className="mt-6">
-                <EmptyState
-                  hasHabits={habits.length > 0}
-                  onAddHabit={() => setShowForm(true)}
-                />
-              </div>
-            )}
-
-            {!loading && !error && filteredHabits.length > 0 && (
-              <div className="mt-5">
-                <HabitList
-                  habits={filteredHabits}
-                  completedHabits={completedHabits}
-                  onToggle={toggleHabit}
-                />
-              </div>
-            )}
-          </section>
-
-          <footer className="mt-12 border-t border-white/[0.07] py-6 text-center text-xs text-[#687568]">
-            Made for growth, built for real life.{" "}
-            <span className="text-[#C5F36B]">✳</span>
+          <footer className="mt-12 border-t `border-white/[0.06]` py-5 text-center text-xs text-[#6B7280]">
+            Built for real life, one habit at a time.
           </footer>
         </section>
       </div>
