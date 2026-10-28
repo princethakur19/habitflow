@@ -39,3 +39,20 @@ export async function createHabit(
 
   return result.data as Habit;
 }
+
+export async function deleteHabit(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+    },
+  );
+
+  if (!response.ok) {
+    const result = await response.json().catch(() => null);
+
+    throw new Error(
+      result?.message || "Could not delete habit.",
+    );
+  }
+}
