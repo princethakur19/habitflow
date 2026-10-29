@@ -56,8 +56,16 @@ const categories: HabitCategory[] = [
 ];
 
 export default function Dashboard() {
-  const { habits, loading, saving, error, addHabit, refreshHabits } =
-    useHabits();
+  const {
+    habits,
+    loading,
+    saving,
+    deleting,
+    error,
+    addHabit,
+    removeHabit,
+    refreshHabits,
+  } = useHabits();
 
   const [history, setHistory] = useState<CompletionHistory>(readHistory);
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
@@ -319,7 +327,10 @@ export default function Dashboard() {
                 dateLabel={dateLabel}
               />
 
-              <section id="progress" className="rounded-2xl border border-white/[0.07] bg-[#111827] p-5">
+              <section
+                id="progress"
+                className="rounded-2xl border border-white/[0.07] bg-[#111827] p-5"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold">Weekly activity</h2>
