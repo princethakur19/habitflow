@@ -67,6 +67,32 @@ export default function Dashboard() {
     refreshHabits,
   } = useHabits();
 
+  const handleDeleteHabit = async (id: string) => {
+    const habit = habits.find((item) => item._id === id);
+
+    if (!habit) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${habit.title}"?`,
+    );
+
+    if (!confirmed) return;
+
+    const success = await removeHabit(id);
+
+    if (success) {
+      setHistory((current) => {
+        const updated: CompletionHistory = {};
+
+        for (const [day, ids] of Object.entries(current)) {
+          updated[day] = ids.filter((habitId) => habitId !== id);
+        }
+
+        return updated;
+      });
+    }
+  };
+
   const [history, setHistory] = useState<CompletionHistory>(readHistory);
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
   const [activeCategory, setActiveCategory] =
@@ -314,6 +340,8 @@ export default function Dashboard() {
                       habits={filteredHabits}
                       completedHabits={selectedCompletions}
                       onToggle={toggleHabit}
+                      onDelete={handleDeleteHabit}
+                      deleting={deleting}
                     />
                   </div>
                 )}
