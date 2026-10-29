@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import Habit from "../models/Habit.js";
+import mongoose from "mongoose";
 
 export const createHabit = async (
   req: Request,
@@ -65,6 +66,52 @@ export const getHabits = async (
     res.status(500).json({
       success: false,
       message: "Failed to fetch habits",
+    });
+  }
+};
+
+
+export const deleteHabit = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Check whether the ID is a valid MongoDB ObjectId
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid habit ID",
+      });
+      return;
+    }
+
+    // Find the habit and delete it from MongoDB
+    const habit = await Habit.findByIdAndDelete(id);
+
+    if (!habit) {
+      res.status(404).json({
+        success: false,
+        message: "Habit not found",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Habit deleted successfully",
+      data: habit,
+    });
+  } catch (error) {
+    console.error("Delete habit error:", error);
+
+    res.status(500).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to delete habit",
     });
   }
 };
